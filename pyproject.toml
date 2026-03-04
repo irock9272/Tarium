@@ -1,0 +1,10 @@
+[project]
+name = "browsr"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pyqt6>=6.10.2",
+    "pyqt6-webengine>=6.10.0",
+]
