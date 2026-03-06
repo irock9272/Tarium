@@ -14,6 +14,8 @@ from PyQt6.QtCore import QUrl, Qt
 from PyQt6.QtGui import QIcon, QShortcut, QKeySequence
 from urllib.parse import quote_plus
 
+from config_loader import build_stylesheet, load_config
+
 APP_STYLESHEET = """
     QMainWindow { background-color: #2E2E2E; }
     QDialog { background-color: #2E2E2E; }
@@ -59,11 +61,11 @@ APP_STYLESHEET = """
 """
 
 class ProfileManager(QDialog):
-    def __init__(self):
+    def __init__(self, stylesheet: str | None = None):
         super().__init__()
         self.setWindowTitle("Profile Manager")
         self.setGeometry(400, 200, 400, 300)
-        self.setStyleSheet(APP_STYLESHEET)
+        self.setStyleSheet(stylesheet or APP_STYLESHEET)
 
         self.profiles_folder = "profiles"
         os.makedirs(self.profiles_folder, exist_ok=True)
@@ -154,14 +156,15 @@ class BrowserTab(QWidget):
         self.browser_ref.on_tab_url_changed(url, self)
 
 class WebBrowser(QMainWindow):
-    def __init__(self, profile_name):
+    def __init__(self, profile_name, config: dict):
         super().__init__()
         self.profile_name = profile_name
         self.profile_path = os.path.join("profiles", self.profile_name)
 
         self.setWindowTitle(f"Tarium Browser - {self.profile_name}")
         self.setGeometry(200, 200, 1024, 768)
-        self.home_url = "https://online.bonjourr.fr/"
+        self.home_url = config["home_url"]
+        self.search_template = config["search"]["template"]
 
         self.data_folder = self.profile_path
         os.makedirs(self.data_folder, exist_ok=True)
@@ -239,8 +242,7 @@ class WebBrowser(QMainWindow):
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
-        # Global dark theme for main window and dialogs
-        self.setStyleSheet(APP_STYLESHEET)
+        self.setStyleSheet(build_stylesheet(config["theme"]))
 
         self.add_new_tab()
 
@@ -321,9 +323,10 @@ class WebBrowser(QMainWindow):
                 url_str = "http://" + url_str
             qurl = QUrl(url_str)
         else:
-            # Treat as a search query and open a Google search
+            # Treat as a search query; use template from config (e.g. ${query})
             query = quote_plus(text)
-            qurl = QUrl(f"https://www.google.com/search?q={query}")
+            url_str = self.search_template.replace("${query}", query)
+            qurl = QUrl(url_str)
 
         browser = self.current_browser()
         if browser:
@@ -550,8 +553,19 @@ class WebBrowser(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    manager = ProfileManager()
+    config, config_errors = load_config()
+    if config_errors or config is None:
+        QMessageBox.critical(
+            None,
+            "Config Error",
+            "Invalid or missing config. The browser will exit.\n\n"
+            + "\n".join(config_errors or ["No config returned."]),
+        )
+        sys.exit(1)
+    stylesheet = build_stylesheet(config["theme"])
+
+    manager = ProfileManager(stylesheet=stylesheet)
     if manager.exec() == QDialog.DialogCode.Accepted:
-        window = WebBrowser(manager.selected_profile)
+        window = WebBrowser(manager.selected_profile, config=config)
         window.show()
         sys.exit(app.exec())

@@ -41,6 +41,11 @@ Features
   - `Ctrl+W` → close the current tab.
   - `Ctrl+1` … `Ctrl+9` → switch to the corresponding tab (ignored if that tab doesn’t exist).
 
+- **Lua config** (`./config/*.lua`)
+  - All `.lua` files in `./config` are run and merged into one config.
+  - You can set **theme** (hex colors: `background`, `surface`, `text`, etc.), **home_url**, and **search** (template URL with `${query}`).
+  - Logic is optional: use plain `return { ... }` or time/random-based theme selection. On error, a popup is shown and defaults are used for that file.
+
 Getting Started
 ---------------
 
@@ -83,7 +88,9 @@ Project Layout
 --------------
 
 - `browser.py` – main application window, tabs, dialogs, and all browser logic.
+- `config_loader.py` – loads and merges Lua config from `./config`, builds stylesheet from theme.
 - `main.py` – simple entry point (can be expanded if needed).
+- `config/` – optional Lua config files (e.g. `theme.lua`, `home_and_search.lua`); see comments in the sample files.
 - `profiles/` – created at runtime; contains per‑profile data.
 - `icons/` – toolbar and UI icons (back, forward, home, new tab, plugins, bookmarks, hamburger menu, etc.).
 - `plugins/` – JavaScript files injected into pages for enabled profiles.

@@ -1,10 +1,11 @@
 [project]
-name = "Tarium Browser"
+name = "tarium-browser"
 version = "0.1.0"
 description = "A Simple Web Browser Made In Python."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "lupa>=2.0",
     "pyqt6>=6.10.2",
     "pyqt6-webengine>=6.10.0",
 ]
