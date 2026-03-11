@@ -36,9 +36,42 @@ Must contain:
 |------------|-------------|
 | `template` | URL template for the search bar. Must include the literal **`${query}`**, which is replaced by the user’s search text (e.g. `"https://www.google.com/search?q=${query}"`). |
 
+### `keybinds` (table, optional)
+
+Maps key sequences to actions. If omitted, no keyboard shortcuts are registered.
+
+**Key:** A string key sequence (e.g. `"Ctrl+T"`, `"Ctrl+Shift+H"`).
+
+**Value:** Either a string action or a table for URL actions.
+
+| Action string    | Description                    |
+|------------------|--------------------------------|
+| `new_tab`        | Open a new tab (home page)     |
+| `close_tab`      | Close the current tab          |
+| `switch_tab_1` … `switch_tab_9` | Switch to that tab index |
+
+**URL actions** (table): `{ action = "...", url = "https://..." }`
+
+| Action           | Description                          |
+|------------------|--------------------------------------|
+| `new_tab_url`    | Open a new tab and load the URL      |
+| `replace_tab_url`| Navigate the current tab to the URL  |
+
+Example:
+
+```lua
+keybinds = {
+  ["Ctrl+T"] = "new_tab",
+  ["Ctrl+W"] = "close_tab",
+  ["Ctrl+1"] = "switch_tab_1",
+  ["Ctrl+Shift+G"] = { action = "new_tab_url", url = "https://www.google.com" },
+  ["Ctrl+Shift+D"] = { action = "replace_tab_url", url = "https://duckduckgo.com" },
+}
+```
+
 ---
 
-## Example: minimal two-file setup
+## Example: minimal setup
 
 **theme.lua**
 
@@ -65,6 +98,19 @@ return {
   home_url = "https://online.bonjourr.fr/",
   search = {
     template = "https://www.google.com/search?q=${query}",
+  },
+}
+```
+
+**keybinds.lua** (optional; see `keybinds.lua` in this folder for the standard set)
+
+```lua
+return {
+  keybinds = {
+    ["Ctrl+T"] = "new_tab",
+    ["Ctrl+W"] = "close_tab",
+    ["Ctrl+1"] = "switch_tab_1",
+    -- ...
   },
 }
 ```

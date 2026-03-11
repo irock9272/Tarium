@@ -246,16 +246,50 @@ class WebBrowser(QMainWindow):
 
         self.add_new_tab()
 
-        # Keyboard shortcuts
-        QShortcut(QKeySequence("Ctrl+T"), self, activated=self.add_new_tab)
-        QShortcut(QKeySequence("Ctrl+W"), self, activated=self.close_current_tab)
-        for i in range(1, 10):
-            index = i - 1
-            QShortcut(
-                QKeySequence(f"Ctrl+{i}"),
-                self,
-                activated=lambda idx=index: self.activate_tab(idx),
-            )
+        self._register_keybinds(config.get("keybinds") or {})
+
+    def _register_keybinds(self, keybinds: dict):
+        """Register keyboard shortcuts from config. Keys are key sequences (e.g. 'Ctrl+T')."""
+        for seq_str, action in keybinds.items():
+            seq_str = str(seq_str).strip()
+            if not seq_str:
+                continue
+            try:
+                qseq = QKeySequence(seq_str)
+                if qseq.isEmpty():
+                    continue
+            except Exception:
+                continue
+            if isinstance(action, str):
+                if action == "new_tab":
+                    QShortcut(qseq, self, activated=self.add_new_tab)
+                elif action == "close_tab":
+                    QShortcut(qseq, self, activated=self.close_current_tab)
+                elif action in {f"switch_tab_{i}" for i in range(1, 10)}:
+                    idx = int(action.split("_")[-1]) - 1
+                    QShortcut(qseq, self, activated=lambda i=idx: self.activate_tab(i))
+            elif isinstance(action, dict):
+                act = action.get("action")
+                url = action.get("url")
+                if act == "new_tab_url" and url and str(url).strip().startswith("http"):
+                    u = str(url).strip()
+                    QShortcut(qseq, self, activated=lambda uu=u: self.open_url_in_new_tab(uu))
+                elif act == "replace_tab_url" and url and str(url).strip().startswith("http"):
+                    u = str(url).strip()
+                    QShortcut(qseq, self, activated=lambda uu=u: self.replace_current_tab_url(uu))
+
+    def open_url_in_new_tab(self, url: str):
+        """Open a URL in a new tab and switch to it."""
+        self.add_new_tab()
+        browser = self.current_browser()
+        if browser:
+            browser.setUrl(QUrl(url))
+
+    def replace_current_tab_url(self, url: str):
+        """Navigate the current tab to the given URL."""
+        browser = self.current_browser()
+        if browser:
+            browser.setUrl(QUrl(url))
 
     def load_json(self, filename):
         path = os.path.join(self.data_folder, filename)

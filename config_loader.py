@@ -113,6 +113,31 @@ def _validate_config(merged: dict) -> list[str]:
         if template is None or "${query}" not in str(template):
             errors.append("config: 'search.template' must be a string containing '${query}'.")
 
+    keybinds = merged.get("keybinds")
+    if keybinds is not None:
+        if not isinstance(keybinds, dict):
+            errors.append("config: 'keybinds' must be a table.")
+        else:
+            valid_actions = {"new_tab", "close_tab"}
+            valid_actions |= {f"switch_tab_{i}" for i in range(1, 10)}
+            for seq, action in keybinds.items():
+                seq = str(seq).strip()
+                if not seq:
+                    errors.append("keybinds: key sequence cannot be empty.")
+                    continue
+                if isinstance(action, str):
+                    if action not in valid_actions:
+                        errors.append(f"keybinds['{seq}']: unknown action '{action}'.")
+                elif isinstance(action, dict):
+                    act = action.get("action")
+                    url = action.get("url")
+                    if act not in ("new_tab_url", "replace_tab_url"):
+                        errors.append(f"keybinds['{seq}']: action must be 'new_tab_url' or 'replace_tab_url'.")
+                    elif not isinstance(url, str) or not str(url).strip().startswith("http"):
+                        errors.append(f"keybinds['{seq}']: 'url' must be a string starting with http:// or https://.")
+                else:
+                    errors.append(f"keybinds['{seq}']: value must be an action string or {{action=..., url=...}}.")
+
     return errors
 
 
@@ -127,6 +152,7 @@ def load_config() -> tuple[dict | None, list[str]]:
         "theme": {},
         "home_url": None,
         "search": {},
+        "keybinds": {},
     }
 
     if LuaRuntime is None:
@@ -165,6 +191,10 @@ def load_config() -> tuple[dict | None, list[str]]:
                 tmpl = search_data.get("template")
                 if tmpl is not None:
                     merged["search"]["template"] = str(tmpl)
+            keybinds_data = data.get("keybinds")
+            if isinstance(keybinds_data, dict):
+                for k, v in keybinds_data.items():
+                    merged["keybinds"][str(k)] = v
 
     validation_errors = _validate_config(merged)
     errors.extend(validation_errors)
