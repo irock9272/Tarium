@@ -92,7 +92,7 @@ Project Layout
 - `main.py` – simple entry point (can be expanded if needed).
 - `config/` – optional Lua config files (e.g. `theme.lua`, `home_and_search.lua`); see comments in the sample files.
 - `profiles/` – created at runtime; contains per‑profile data.
-- `icons/` – toolbar and UI icons (back, forward, home, new tab, plugins, bookmarks, hamburger menu, etc.).
+- `icons/` – toolbar and UI icons (back, forward, home, new tab, plugins, bookmarks, hamburger menu, etc.). The browser also uses `icons/logo.png` as the application/window icon if present.
 - `plugins/` – JavaScript files injected into pages for enabled profiles.
 - `pyproject.toml` / `uv.lock` – Python project & dependency metadata.
 

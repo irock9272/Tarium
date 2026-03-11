@@ -64,6 +64,10 @@ class ProfileManager(QDialog):
     def __init__(self, stylesheet: str | None = None):
         super().__init__()
         self.setWindowTitle("Profile Manager")
+        # if logo exists, set it on the dialog as well
+        logo_path = os.path.join("icons", "logo.png")
+        if os.path.exists(logo_path):
+            self.setWindowIcon(QIcon(logo_path))
         self.setGeometry(400, 200, 400, 300)
         self.setStyleSheet(stylesheet or APP_STYLESHEET)
 
@@ -162,6 +166,10 @@ class WebBrowser(QMainWindow):
         self.profile_path = os.path.join("profiles", self.profile_name)
 
         self.setWindowTitle(f"Tarium Browser - {self.profile_name}")
+        # Use the supplied logo as the window icon if available
+        logo_path = os.path.join("icons", "logo.png")
+        if os.path.exists(logo_path):
+            self.setWindowIcon(QIcon(logo_path))
         self.setGeometry(200, 200, 1024, 768)
         self.home_url = config["home_url"]
         self.search_template = config["search"]["template"]
