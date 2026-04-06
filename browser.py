@@ -317,14 +317,21 @@ def _dict_to_lua_table(data: dict, indent: int = 0) -> str:
     return "\n".join(lines)
 
 
+def _lua_escape_string(value: str) -> str:
+    """Escape a Python string for safe use inside Lua double quotes."""
+    return str(value).replace("\\", "\\\\").replace("\"", "\\\"")
+
+
 def write_lua_config_files(config: dict):
     os.makedirs("config", exist_ok=True)
     theme_content = "return {\n  theme = " + _dict_to_lua_table(config["theme"], 2) + ",\n}\n"
+    safe_home_url = _lua_escape_string(config["home_url"])
+    safe_search_template = _lua_escape_string(config["search"]["template"])
     web_content = (
         "return {\n"
-        f"  home_url = \"{config['home_url']}\",\n"
+        f"  home_url = \"{safe_home_url}\",\n"
         "  search = {\n"
-        f"    template = \"{config['search']['template']}\",\n"
+        f"    template = \"{safe_search_template}\",\n"
         "  },\n"
         "}\n"
     )
