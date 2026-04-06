@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
     QWidget, QPushButton, QLineEdit, QTabWidget, QDialog,
     QCheckBox, QListWidget, QListWidgetItem, QLabel, QInputDialog,
-    QMessageBox, QMenu
+    QMessageBox, QMenu, QComboBox, QFormLayout
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage
@@ -15,6 +15,14 @@ from PyQt6.QtGui import QIcon, QShortcut, QKeySequence
 from urllib.parse import quote_plus
 
 from config_loader import build_stylesheet, load_config
+
+ONBOARDING_TEST_MODE = False
+SEARCH_PROVIDERS = {
+    "Google": "https://www.google.com/search?q=${query}",
+    "DuckDuckGo": "https://duckduckgo.com/?q=${query}",
+    "Bing": "https://www.bing.com/search?q=${query}",
+    "Brave": "https://search.brave.com/search?q=${query}",
+}
 
 APP_STYLESHEET = """
     QMainWindow { background-color: #2E2E2E; }
@@ -158,6 +166,193 @@ class BrowserTab(QWidget):
     def url_changed(self, url):
         # Notify the main window so it can update history and URL bar
         self.browser_ref.on_tab_url_changed(url, self)
+
+
+class FirstRunOnboardingDialog(QDialog):
+    """Collect first-run settings and optionally generate Lua config files."""
+
+    def __init__(self, current_config: dict | None = None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("First-Run Setup")
+        self.resize(520, 420)
+        self._result = None
+        self.current_config = current_config or {}
+
+        layout = QVBoxLayout(self)
+
+        intro = QLabel(
+            "Configure startup defaults for Tarium.\n"
+            "These options generate global Lua config files."
+        )
+        layout.addWidget(intro)
+
+        form = QFormLayout()
+
+        self.home_input = QLineEdit(self.current_config.get("home_url", "https://example.com"))
+        form.addRow("Home / Start page:", self.home_input)
+
+        self.search_combo = QComboBox()
+        self.search_combo.addItems(list(SEARCH_PROVIDERS.keys()))
+        current_search = (self.current_config.get("search") or {}).get("template", "")
+        if current_search:
+            for name, template in SEARCH_PROVIDERS.items():
+                if template == current_search:
+                    self.search_combo.setCurrentText(name)
+                    break
+        form.addRow("Search provider:", self.search_combo)
+
+        self.enable_keybinds = QCheckBox("Enable keyboard shortcuts")
+        self.enable_keybinds.setChecked(True)
+        form.addRow("", self.enable_keybinds)
+
+        self.new_tab_key = QComboBox()
+        self.new_tab_key.addItems(["T", "N", "K"])
+        self.new_tab_key.setCurrentText("T")
+        form.addRow("New tab key (Ctrl+):", self.new_tab_key)
+
+        self.close_tab_key = QComboBox()
+        self.close_tab_key.addItems(["W", "Q", "X"])
+        self.close_tab_key.setCurrentText("W")
+        form.addRow("Close tab key (Ctrl+):", self.close_tab_key)
+
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["Dark (default)", "Light"])
+        form.addRow("Theme preset:", self.theme_combo)
+
+        layout.addLayout(form)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        buttons.addWidget(cancel)
+        apply_btn = QPushButton("Apply")
+        apply_btn.clicked.connect(self._on_apply)
+        buttons.addWidget(apply_btn)
+        layout.addLayout(buttons)
+
+    def _theme_preset(self) -> dict:
+        if self.theme_combo.currentText().startswith("Light"):
+            return {
+                "background": "#F2F2F2",
+                "surface": "#FFFFFF",
+                "surface_hover": "#E5E5E5",
+                "surface_pressed": "#D6D6D6",
+                "text": "#111111",
+                "list_bg": "#FFFFFF",
+                "tab_bg": "#ECECEC",
+                "tab_selected": "#DDDDDD",
+                "tab_hover": "#E2E2E2",
+            }
+        return {
+            "background": "#2E2E2E",
+            "surface": "#444444",
+            "surface_hover": "#555555",
+            "surface_pressed": "#666666",
+            "text": "#FFFFFF",
+            "list_bg": "#3A3A3A",
+            "tab_bg": "#444444",
+            "tab_selected": "#555555",
+            "tab_hover": "#555555",
+        }
+
+    def _build_keybinds(self) -> dict:
+        if not self.enable_keybinds.isChecked():
+            return {}
+        new_tab_seq = f"Ctrl+{self.new_tab_key.currentText()}"
+        close_tab_seq = f"Ctrl+{self.close_tab_key.currentText()}"
+        if new_tab_seq == close_tab_seq:
+            raise ValueError("New tab and close tab shortcuts must be different.")
+        return {
+            new_tab_seq: "new_tab",
+            close_tab_seq: "close_tab",
+            "Ctrl+1": "switch_tab_1",
+            "Ctrl+2": "switch_tab_2",
+            "Ctrl+3": "switch_tab_3",
+            "Ctrl+4": "switch_tab_4",
+            "Ctrl+5": "switch_tab_5",
+            "Ctrl+6": "switch_tab_6",
+            "Ctrl+7": "switch_tab_7",
+            "Ctrl+8": "switch_tab_8",
+            "Ctrl+9": "switch_tab_9",
+        }
+
+    def _on_apply(self):
+        home_url = self.home_input.text().strip()
+        if not (home_url.startswith("http://") or home_url.startswith("https://")):
+            QMessageBox.warning(self, "Invalid URL", "Home URL must start with http:// or https://.")
+            return
+        try:
+            keybinds = self._build_keybinds()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Invalid keybinds", str(exc))
+            return
+
+        search_template = SEARCH_PROVIDERS[self.search_combo.currentText()]
+        self._result = {
+            "theme": self._theme_preset(),
+            "home_url": home_url,
+            "search": {"template": search_template},
+            "keybinds": keybinds,
+        }
+        self.accept()
+
+    def get_config(self) -> dict | None:
+        return self._result
+
+
+def _dict_to_lua_table(data: dict, indent: int = 0) -> str:
+    pad = " " * indent
+    lines = ["{"]
+    for key, value in data.items():
+        lua_key = f"[\"{key}\"]"
+        if isinstance(value, dict):
+            lines.append(f"{pad}  {lua_key} = {_dict_to_lua_table(value, indent + 2)},")
+        elif isinstance(value, str):
+            safe = value.replace("\\", "\\\\").replace("\"", "\\\"")
+            lines.append(f'{pad}  {lua_key} = "{safe}",')
+        else:
+            lines.append(f"{pad}  {lua_key} = {value},")
+    lines.append(f"{pad}}}")
+    return "\n".join(lines)
+
+
+def _lua_escape_string(value: str) -> str:
+    """Escape a Python string for safe use inside Lua double quotes."""
+    return str(value).replace("\\", "\\\\").replace("\"", "\\\"")
+
+
+def write_lua_config_files(config: dict):
+    os.makedirs("config", exist_ok=True)
+    theme_content = "return {\n  theme = " + _dict_to_lua_table(config["theme"], 2) + ",\n}\n"
+    safe_home_url = _lua_escape_string(config["home_url"])
+    safe_search_template = _lua_escape_string(config["search"]["template"])
+    web_content = (
+        "return {\n"
+        f"  home_url = \"{safe_home_url}\",\n"
+        "  search = {\n"
+        f"    template = \"{safe_search_template}\",\n"
+        "  },\n"
+        "}\n"
+    )
+    keybinds_content = "return {\n  keybinds = " + _dict_to_lua_table(config.get("keybinds", {}), 2) + ",\n}\n"
+
+    with open(os.path.join("config", "theme.lua"), "w", encoding="utf-8") as f:
+        f.write(theme_content)
+    with open(os.path.join("config", "web.lua"), "w", encoding="utf-8") as f:
+        f.write(web_content)
+    with open(os.path.join("config", "keybinds.lua"), "w", encoding="utf-8") as f:
+        f.write(keybinds_content)
+
+
+def should_open_onboarding(config_errors: list[str]) -> tuple[bool, bool]:
+    """Return (open_onboarding, auto_open)."""
+    if not config_errors:
+        return False, False
+    missing_files = any("No .lua files found" in err for err in config_errors)
+    if missing_files:
+        return True, True
+    return True, False
 
 class WebBrowser(QMainWindow):
     def __init__(self, profile_name, config: dict):
@@ -596,14 +791,48 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     config, config_errors = load_config()
-    if config_errors or config is None:
-        QMessageBox.critical(
-            None,
-            "Config Error",
-            "Invalid or missing config. The browser will exit.\n\n"
-            + "\n".join(config_errors or ["No config returned."]),
-        )
-        sys.exit(1)
+    if ONBOARDING_TEST_MODE:
+        onboarding = FirstRunOnboardingDialog(current_config=config)
+        if onboarding.exec() == QDialog.DialogCode.Accepted and onboarding.get_config():
+            config = onboarding.get_config()
+        elif config is None:
+            QMessageBox.critical(
+                None,
+                "Config Error",
+                "Onboarding test mode did not produce a valid config. The browser will exit.",
+            )
+            sys.exit(1)
+    elif config_errors or config is None:
+        open_onboarding, auto_open = should_open_onboarding(config_errors or ["No config returned."])
+        accepted = False
+        if open_onboarding:
+            if auto_open:
+                accepted = True
+            else:
+                reply = QMessageBox.question(
+                    None,
+                    "Config Error",
+                    "Invalid config detected.\n\n"
+                    + "\n".join(config_errors or ["No config returned."])
+                    + "\n\nOpen onboarding to generate config files?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                accepted = reply == QMessageBox.StandardButton.Yes
+        if accepted:
+            onboarding = FirstRunOnboardingDialog(current_config=config)
+            if onboarding.exec() == QDialog.DialogCode.Accepted and onboarding.get_config():
+                write_lua_config_files(onboarding.get_config())
+                config, config_errors = load_config()
+
+        if config_errors or config is None:
+            QMessageBox.critical(
+                None,
+                "Config Error",
+                "Invalid or missing config. The browser will exit.\n\n"
+                + "\n".join(config_errors or ["No config returned."]),
+            )
+            sys.exit(1)
+
     stylesheet = build_stylesheet(config["theme"])
 
     manager = ProfileManager(stylesheet=stylesheet)
